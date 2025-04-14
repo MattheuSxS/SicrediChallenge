@@ -1,0 +1,69 @@
+stages:
+  - code-test
+  - tf-test #TODO: Implementar testes de terraform
+  - tf-deploy
+  - tf-destroy
+
+
+code-test:
+  stage: code-test
+  image: python:3.11-bullseye
+  except:
+    refs:
+      - main
+  before_script:
+    - apt-get update
+    - apt-get install -y build-essential openjdk-11-jdk
+    - export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/
+    - export PATH=$PATH:$JAVA_HOME/bin
+    - export PYTHONPATH=$(pwd)/docker/src
+    - pip install -r ./docker/src/requirements-dev.txt
+  script:
+    - make coverage
+
+tf-test:
+  stage: tf-test
+  image:
+    name: mattheusxs/tf-1.11-cloud-sdk-515
+    entrypoint: [""]
+  except:
+    refs:
+      - main
+  before_script:
+    - cd ./configs/terraform
+    - cat /builds/MattheuSxS/sicredi_challenge.tmp/terraform_tfvars > terraform.tfvars
+  script:
+    - terraform init
+    - terraform validate
+
+
+tf-deploy-prd:
+  stage: tf-deploy
+  image:
+    name: mattheusxs/tf-1.11-cloud-sdk-515
+    entrypoint: [""]
+  when: manual
+  before_script:
+    - cd ./configs/terraform
+    - gcloud auth activate-service-account --key-file=/builds/MattheuSxS/sicredi_challenge.tmp/GOOGLE_APPLICATION_CREDENTIALS
+    - gcloud config set project $GCP_PROJECT_ID
+    - cat /builds/MattheuSxS/sicredi_challenge.tmp/terraform_tfvars > terraform.tfvars
+  script:
+    - terraform init
+    - terraform apply -auto-approve
+
+
+tf-destroy-prd:
+  stage: tf-destroy
+  image:
+    name: mattheusxs/tf-1.11-cloud-sdk-515
+    entrypoint: [""]
+  when: manual
+  before_script:
+    - cd ./configs/terraform
+    - gcloud auth activate-service-account --key-file=/builds/MattheuSxS/sicredi_challenge.tmp/GOOGLE_APPLICATION_CREDENTIALS
+    - gcloud config set project $GCP_PROJECT_ID
+    - cat /builds/MattheuSxS/sicredi_challenge.tmp/terraform_tfvars > terraform.tfvars
+  script:
+    - terraform init
+    - terraform destroy -auto-approve

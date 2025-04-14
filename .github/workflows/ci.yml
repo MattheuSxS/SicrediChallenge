@@ -1,0 +1,87 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches-ignore:
+      - main
+  workflow_dispatch:
+
+jobs:
+  code-test:
+    name: Code Test
+    runs-on: ubuntu-latest
+    container: python:3.11-bullseye
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          apt-get update
+          apt-get install -y build-essential openjdk-11-jdk
+          export JAVA_HOME=/usr/lib/jvm/java-11-openjdk-amd64/
+          export PATH=$PATH:$JAVA_HOME/bin
+          export PYTHONPATH=$(pwd)/docker/src
+          pip install -r ./docker/src/requirements-dev.txt
+
+      - name: Run tests
+        run: make coverage
+
+  tf-test:
+    name: Terraform Test
+    runs-on: ubuntu-latest
+    container:
+      image: mattheusxs/tf-1.11-cloud-sdk-515
+      options: --entrypoint=""
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Prepare and validate Terraform
+        run: |
+          cd ./configs/terraform
+          echo "${{ secrets.TERRAFORM_TFVARS }}" > terraform.tfvars
+          terraform init
+          terraform validate
+
+  tf-deploy-prd:
+    name: Terraform Deploy (PRD)
+    runs-on: ubuntu-latest
+    container:
+      image: mattheusxs/tf-1.11-cloud-sdk-515
+      options: --entrypoint=""
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Terraform Deploy
+        run: |
+          cd ./configs/terraform
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > credentials.json
+          gcloud auth activate-service-account --key-file=credentials.json
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          echo "${{ secrets.TERRAFORM_TFVARS }}" > terraform.tfvars
+          terraform init
+          terraform apply -auto-approve
+
+  tf-destroy-prd:
+    name: Terraform Destroy (PRD)
+    runs-on: ubuntu-latest
+    container:
+      image: mattheusxs/tf-1.11-cloud-sdk-515
+      options: --entrypoint=""
+    if: github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Terraform Destroy
+        run: |
+          cd ./configs/terraform
+          echo "${{ secrets.GOOGLE_CREDENTIALS }}" > credentials.json
+          gcloud auth activate-service-account --key-file=credentials.json
+          gcloud config set project ${{ secrets.GCP_PROJECT_ID }}
+          echo "${{ secrets.TERRAFORM_TFVARS }}" > terraform.tfvars
+          terraform init
+          terraform destroy -auto-approve

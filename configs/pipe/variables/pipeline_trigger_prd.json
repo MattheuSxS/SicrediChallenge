@@ -1,0 +1,87 @@
+{
+    "pipeline_trigger_prd": {
+        "schedule_interval": "30 6 * * *",
+        "retries": 3,
+        "retry_delay": 10,
+        "dagrun_timeout": 30,
+        "project_env": "dev",
+        "project_vars": "mts-default-projetct",
+        "secret_id": "secret_db_credentials",
+        "cloud_function_url": "https://us-east1-mts-default-projetct.cloudfunctions.net/cf-sicredi",
+        "dataproc_config": {
+            "cluster_name": "sicredi-cluster",
+            "region": "us-east1",
+            "bkt_gcp_dataproc": "bkt-si-dataproc",
+            "cluster_config": {
+                "gce_cluster_config": {
+                    "tags": [
+                        "sicredi",
+                        "projeto-exploracao-dados",
+                        "gerencia-vd-analytics-engineering",
+                        "coord-762-ae-venda-direta"
+                    ],
+                    "service_account_scopes": [
+                        "https://www.googleapis.com/auth/cloud-platform",
+                        "https://www.googleapis.com/auth/cloud.useraccounts.readonly",
+                        "https://www.googleapis.com/auth/devstorage.read_write",
+                        "https://www.googleapis.com/auth/logging.write",
+                        "https://www.googleapis.com/auth/sqlservice.admin"
+                    ],
+                    "internal_ip_only": false,
+                    "metadata": {
+                        "enable-cloud-sql-hive-metastore": "false",
+                        "additional-cloud-sql-instances": "mts-default-projetct:us-east1:sicredi-instance-postgres"
+                    }
+                },
+                "master_config": {
+                    "num_instances": 1,
+                    "machine_type_uri": "e2-standard-8",
+                    "disk_config": {
+                        "boot_disk_type": "pd-ssd",
+                        "boot_disk_size_gb": 50
+                    }
+                },
+                "worker_config": {
+                    "num_instances": 2,
+                    "machine_type_uri": "e2-standard-8",
+                    "disk_config": {
+                        "boot_disk_type": "pd-ssd",
+                        "boot_disk_size_gb": 100
+                    }
+                },
+                "initialization_actions": [
+                    {"executable_file": "gs://bkt-si-dataproc/cloud-sql-proxy/cloud-sql-proxy.sh"},
+                    {"executable_file": "gs://bkt-si-dataproc/spark_drivers/install_secret_manager.sh"}
+                ],
+                "software_config": {
+                    "image_version": "{{dataproc_version}}",
+                    "properties": {
+                        "dataproc:dataproc.conscrypt.provider.enable": "false",
+                        "spark:spark.sql.debug.maxToStringFields": "300",
+                        "spark:spark.sql.legacy.parquet.datetimeRebaseModeInWrite": "CORRECTED",
+                        "spark:spark.dynamicAllocation.enabled": "true",
+                        "spark:spark.memory.fraction": "0.8",
+                        "spark:spark.executor.cores": "4",
+                        "spark:spark.executor.memory": "12g",
+                        "spark:spark.driver.memory": "8g",
+                        "spark:spark.default.parallelism": "16",
+                        "hive:hive.optimize.sort.dynamic.partition": "true",
+                        "spark-env:SPARK_DAEMON_MEMORY": "1024m",
+                        "yarn-env:YARN_NODEMANAGER_HEAPSIZE": "4000",
+                        "yarn-env:YARN_RESOURCEMANAGER_HEAPSIZE": "1024",
+                        "yarn-env:YARN_TIMELINESERVER_HEAPSIZE": "1024",
+                        "yarn:yarn.nodemanager.resource.memory-mb": "28672",
+                        "yarn:yarn.nodemanager.pmem-check-enabled": "false",
+                        "yarn:yarn.scheduler.maximum-allocation-mb": "28672",
+                        "yarn:yarn.scheduler.minimum-allocation-mb": "4096",
+                        "yarn:yarn.timeline-service.enabled": "false"
+                    }
+                },
+                "lifecycle_config": {
+                    "idle_delete_ttl": 0,
+                    "auto_delete_ttl": 0
+                }
+            }
+        }
+    }
+}

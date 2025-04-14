@@ -1,0 +1,85 @@
+name: spark-cluster
+
+services:
+  spark-master:
+    container_name: pyspark-master
+    build: .
+    image: pyspark-image
+    depends_on:
+      - db-postgres
+    entrypoint: ['./entrypoint.sh', 'master']
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8080" ]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+    volumes:
+      - ./data:/opt/spark/data
+      - ./jobs:/opt/spark/apps
+      - ./drivers:/opt/spark/drivers
+      - ./src:/opt/spark/src
+      - spark-logs:/opt/spark/spark-events
+    env_file:
+      - .env_db
+    ports:
+      - '9091:8080'
+      - '7077:7077'
+
+  spark-history-server:
+    container_name: pyspark-history
+    image: pyspark-image
+    entrypoint: ['./entrypoint.sh', 'history']
+    depends_on:
+      - spark-master
+    volumes:
+      - spark-logs:/opt/spark/spark-events
+    ports:
+      - '18080:18080'
+
+  spark-worker:
+    image: pyspark-image
+    entrypoint: ['./entrypoint.sh', 'worker']
+    depends_on:
+      - spark-master
+    env_file:
+      - .env_db
+    volumes:
+      - ./data:/opt/spark/data
+      - ./jobs:/opt/spark/apps
+      - ./drivers:/opt/spark/drivers
+      - spark-logs:/opt/spark/spark-events
+
+  db-postgres:
+    image: postgres:17.4
+    container_name: db-postgres
+    env_file:
+      - .env_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./drivers/:/docker-entrypoint-initdb.d/
+
+  airflow:
+    image: apache/airflow:2.10.5-python3.11
+    container_name: airflow
+    restart: always
+    entrypoint: /bin/bash
+    command: >
+      -c '(airflow db init && \
+          airflow users create \
+          --username admin \
+          --password 87654321a \
+          --firstname Matheus \
+          --lastname Silva \
+          --role Admin \
+          --email mattheusxs@gmail.com); \
+          airflow webserver & \
+          airflow scheduler'
+    ports:
+      - "8081:8080"
+    volumes:
+      - ../configs/pipe:/opt/airflow/dags
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  spark-logs:

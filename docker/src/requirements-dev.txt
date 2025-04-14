@@ -1,0 +1,11 @@
+Flask
+pytest
+coverage
+pytest-cov
+pytest-html
+mock
+pylint
+autopep8
+unidecode
+
+-r requirements.txt
